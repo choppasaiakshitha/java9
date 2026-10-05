@@ -1,0 +1,534 @@
+**Student.java**
+package com.student.entity;
+
+import javax.persistence.Entity;
+
+@Entity
+@Table(name = "student")
+public class Student {
+
+    @Id
+    @Column(name = "regno")
+    private int regno;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "cgpa")
+    private double cgpa;
+
+    public Student() {
+    }
+
+    public Student(int regno, String name, double cgpa) {
+        this.regno = regno;
+        this.name = name;
+        this.cgpa = cgpa;
+    }
+
+    public int getRegno() {
+        return regno;
+    }
+
+    public void setRegno(int regno) {
+        this.regno = regno;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public double getCgpa() {
+        return cgpa;
+    }
+
+    public void setCgpa(double cgpa) {
+        this.cgpa = cgpa;
+    }
+}
+**StudentDAO.java**
+package com.student.dao;
+
+import java.util.List;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.student.entity.Student;
+
+@Repository
+@Transactional
+public class StudentDAO {
+
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    // Add student
+    public void save(Student student) {
+        entityManager.persist(student);
+    }
+
+    // Display all students
+    public List<Student> getAllStudents() {
+        return entityManager
+                .createQuery("SELECT s FROM Student s", Student.class)
+                .getResultList();
+    }
+
+    // Search student
+    public Student getStudent(int regno) {
+        return entityManager.find(Student.class, regno);
+    }
+
+    // Update student
+    public void update(Student student) {
+        entityManager.merge(student);
+    }
+
+    // Delete student
+    public void delete(int regno) {
+        Student student = entityManager.find(Student.class, regno);
+
+        if (student != null) {
+            entityManager.remove(student);
+        }
+    }
+}
+**StudentController.java**
+package com.student.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import com.student.dao.StudentDAO;
+import com.student.entity.Student;
+
+@Controller
+@RequestMapping("/students")
+public class StudentController {
+
+    @Autowired
+    private StudentDAO studentDAO;
+
+    // Home page
+    @GetMapping("/")
+    public String home() {
+        return "index";
+    }
+
+    // Add student
+    @PostMapping("/add")
+    public String addStudent(@ModelAttribute Student student) {
+
+        studentDAO.save(student);
+
+        return "redirect:/students/list";
+    }
+
+    // Display all students
+    @GetMapping("/list")
+    public String listStudents(Model model) {
+
+        model.addAttribute(
+                "students",
+                studentDAO.getAllStudents()
+        );
+
+        return "students";
+    }
+
+    // Show update page
+    @GetMapping("/edit/{regno}")
+    public String editStudent(
+            @PathVariable int regno,
+            Model model) {
+
+        Student student = studentDAO.getStudent(regno);
+
+        model.addAttribute("student", student);
+
+        return "edit";
+    }
+
+    // Update student
+    @PostMapping("/update")
+    public String updateStudent(
+            @ModelAttribute Student student) {
+
+        studentDAO.update(student);
+
+        return "redirect:/students/list";
+    }
+
+    // Delete student
+    @GetMapping("/delete/{regno}")
+    public String deleteStudent(
+            @PathVariable int regno) {
+
+        studentDAO.delete(regno);
+
+        return "redirect:/students/list";
+    }
+}
+**WebConfig.java**
+package com.example.config;
+
+import java.util.Properties;
+
+import javax.persistence.EntityManagerFactory;
+import javax.sql.DataSource;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.ViewResolverRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+@Configuration
+@EnableWebMvc
+@EnableTransactionManagement
+@ComponentScan(basePackages = "com.example")
+public class WebConfig implements WebMvcConfigurer {
+
+    @Bean
+    public DataSource dataSource() {
+
+        DriverManagerDataSource dataSource =
+                new DriverManagerDataSource();
+
+        dataSource.setDriverClassName(
+                "org.postgresql.Driver");
+
+        dataSource.setUrl(
+                "jdbc:postgresql://localhost:5432/col");
+
+        dataSource.setUsername("postgres");
+
+        dataSource.setPassword("shivali9@1");
+
+        return dataSource;
+    }
+
+    @Bean
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(
+            DataSource dataSource) {
+
+        LocalContainerEntityManagerFactoryBean factory =
+                new LocalContainerEntityManagerFactoryBean();
+
+        factory.setDataSource(dataSource);
+
+        factory.setPackagesToScan(
+                "com.example.entity");
+
+        HibernateJpaVendorAdapter adapter =
+                new HibernateJpaVendorAdapter();
+
+        factory.setJpaVendorAdapter(adapter);
+
+        Properties properties = new Properties();
+
+        properties.put(
+                "hibernate.show_sql",
+                "true");
+
+        factory.setJpaProperties(properties);
+
+        return factory;
+    }
+
+    @Bean
+    public PlatformTransactionManager transactionManager(
+            EntityManagerFactory entityManagerFactory) {
+
+        return new JpaTransactionManager(
+                entityManagerFactory);
+    }
+
+    @Override
+    public void configureViewResolvers(
+            ViewResolverRegistry registry) {
+
+        registry.jsp(
+                "/WEB-INF/views/",
+                ".jsp");
+    }
+}
+**WebAppInitializer.java**
+package com.student.config;
+
+import org.springframework.web.servlet.support
+        .AbstractAnnotationConfigDispatcherServletInitializer;
+
+public class WebAppInitializer
+        extends AbstractAnnotationConfigDispatcherServletInitializer {
+
+    @Override
+    protected Class<?>[] getRootConfigClasses() {
+        return null;
+    }
+
+    @Override
+    protected Class<?>[] getServletConfigClasses() {
+
+        return new Class<?>[] {
+            WebConfig.class
+        };
+    }
+
+    @Override
+    protected String[] getServletMappings() {
+
+        return new String[] {
+            "/"
+        };
+    }
+}
+**edit.jsp**
+<%@ page import="com.student.entity.Student" %>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Update Student</title>
+</head>
+
+<body>
+
+<%
+    Student student =
+        (Student) request.getAttribute("student");
+%>
+
+<h1>Update Student</h1>
+
+<form action="/StudentManagement/students/update"
+      method="post">
+
+    Register Number:
+
+    <input type="number"
+           name="regno"
+           value="<%= student.getRegno() %>"
+           readonly>
+
+    <br><br>
+
+    Name:
+
+    <input type="text"
+           name="name"
+           value="<%= student.getName() %>"
+           required>
+
+    <br><br>
+
+    CGPA:
+
+    <input type="number"
+           name="cgpa"
+           step="0.01"
+           value="<%= student.getCgpa() %>"
+           required>
+
+    <br><br>
+
+    <input type="submit"
+           value="Update Student">
+
+</form>
+
+</body>
+</html>
+**index.jsp**
+<%@ page language="java"
+         contentType="text/html; charset=UTF-8"
+         pageEncoding="UTF-8"%>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Student Management</title>
+</head>
+
+<body>
+
+<h1>Student Management System</h1>
+
+<h2>Add Student</h2>
+
+<form action="/StudentManagement/students/add"
+      method="post">
+
+    Register Number:
+
+    <input type="number"
+           name="regno"
+           required>
+
+    <br><br>
+
+    Name:
+
+    <input type="text"
+           name="name"
+           required>
+
+    <br><br>
+
+    CGPA:
+
+    <input type="number"
+           name="cgpa"
+           step="0.01"
+           required>
+
+    <br><br>
+
+    <input type="submit"
+           value="Add Student">
+
+</form>
+
+</body>
+</html>
+**search.jsp**
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Search Student</title>
+</head>
+
+<body>
+
+<h1>Search Result</h1>
+
+<%
+    Object student = request.getAttribute("student");
+%>
+
+<% if (student != null) { %>
+
+    <p>
+        Student Found
+    </p>
+
+    <p>
+        Register Number:
+        ${student.regno}
+    </p>
+
+    <p>
+        Name:
+        ${student.name}
+    </p>
+
+    <p>
+        CGPA:
+        ${student.cgpa}
+    </p>
+
+<% } else { %>
+
+    <p>
+        Student Not Found
+    </p>
+
+<% } %>
+
+</body>
+</html>
+**students.jsp**
+<%@ page import="java.util.List" %>
+<%@ page import="com.student.entity.Student" %>
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>All Students</title>
+</head>
+
+<body>
+
+<h1>Student List</h1>
+
+<table border="1" cellpadding="10">
+
+    <tr>
+        <th>Register Number</th>
+        <th>Name</th>
+        <th>CGPA</th>
+        <th>Actions</th>
+    </tr>
+
+<%
+    List<Student> students =
+        (List<Student>) request.getAttribute("students");
+
+    if (students != null) {
+
+        for (Student student : students) {
+%>
+
+    <tr>
+
+        <td>
+            <%= student.getRegno() %>
+        </td>
+
+        <td>
+            <%= student.getName() %>
+        </td>
+
+        <td>
+            <%= student.getCgpa() %>
+        </td>
+
+        <td>
+            <a href="/StudentManagement/students/edit/<%= student.getRegno() %>">
+                Edit
+            </a>
+
+            |
+
+            <a href="/StudentManagement/students/delete/<%= student.getRegno() %>">
+                Delete
+            </a>
+        </td>
+
+    </tr>
+
+<%
+        }
+    }
+%>
+
+</table>
+
+</body>
+</html>
